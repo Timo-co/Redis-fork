@@ -168,3 +168,25 @@ char *strcat(char *dest,const char *src);
 #### **1. 空间预分配**
 
 空间预分配用于优化SDS的字符串增长操作：当SDS的API对于一个SDS修改，并且需要对SDS空间扩展的时候，程序不仅会为SDS分配修改必须要的空间，还会为SDS分配额外的未使用空间。
+
+其中，额外分配的未使用空间数量由以下公式决定：
+
+- 如果对SDS进行修改之后，SDS的长度（也即是len属性的值）将小于1MB，那么程序分配和len属性同样大小的未使用空间，此时SDS的len属性值江河free属性值相同。举个例子，如果进行修改子厚，SDS的leniang 变为13字节，那么程序也会分配13字节的为使用空间，SDS的bug数组的实际长度将变成13+13+1=27（额外的一字节用于保存空字符）。
+
+- 如果对SDS进行修改之后，SDS的长度大于等于1MB，那么程序会分配1MB的未使用空间。举个例子，如果进行修改之后，SDS的len将变成30MB，那么程序会分配1MB的为使用空间，SDS的buf数组的实际长度为 30MB + 1MB +1 byte.
+
+通过空间预分配策略，Redis可以减少连续执行字符串操作时所需的内存分配次数。
+
+![](http://redisbook.com/_images/graphviz-75c915b3f40fc1586e518b42830a3d8ba4119cf7.png)
+
+举个例子，对于图2-11所示的SDS值s来说，如果我们执行：`sdscat(s," Cluster");` 那么sdscat 将执行一次内存重分配操作，将SDS长度修改为3字节，并将SDS未使用空间同样修改为13字节，如图2-12 所示。
+
+![](http://redisbook.com/_images/graphviz-42ee54f9997d36b2b8ffb0ab75dce2fd509882db.png)
+
+如果这是，，我们再次对s执行：`sdscat(s," Tutorial");` 那么这次sdscat将不需要执行内存重分配，因为未使用空间里面的13字节足以保存9字节的" Tutorial"，执行sdscat 之后的sds如图2-13所示
+
+![](http://redisbook.com/_images/graphviz-3398fdf9cc2ab046814e2721f69cc4ed97f043ab.png)
+
+在扩展SDS空间之前，SDS API会先检查未使用空间是否足够，如果足够的话，API就会直接使用未使用空间，而无须执行内存重分配。
+
+通过这种预分配策略，SDS将连续增长N次字符串所需的内存重分配次数从必定N次降低为最多N次。
