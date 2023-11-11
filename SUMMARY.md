@@ -1,3 +1,3 @@
 # Table of contents
 
-* [Page](README.md)
+* [Redis 学习路线](README.md)
